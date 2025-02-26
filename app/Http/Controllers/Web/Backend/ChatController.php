@@ -4,7 +4,10 @@ namespace App\Http\Controllers\Web\Backend;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use Illuminate\Console\Scheduling\Event;
 use Illuminate\Http\Request;
+use Namu\WireChat\Events\MessageCreated;
+use Namu\WireChat\Events\NotifyParticipant;
 
 class ChatController extends Controller
 {
@@ -12,11 +15,17 @@ class ChatController extends Controller
     {
         $myself = auth()->user();
 
-        $user = User::findOrFail($id);
+        $otherUser = User::findOrFail($id);
 
         $users = User::where('id', '!=', $myself->id)->get();
 
-        return view('chat', compact('user', 'users'));
+        $conversations = $myself->conversations()->with(['participants' => function ($query) {
+            $query->with('participantable:id,name,avatar')->where('participantable_id', '!=', auth()->id());
+        }, 'lastMessage'])->latest('updated_at')->get();
+
+        // return $conversations;
+
+        return view('chat', compact('otherUser', 'users', 'conversations'));
     }
 
     public function send(Request $request, int $id)
@@ -29,7 +38,11 @@ class ChatController extends Controller
 
         $otherUser = User::findOrFail($id);
 
+        $conversation = $myself->createConversationWith($otherUser);
         $conversation = $myself->sendMessageTo($otherUser, $request->message);
+
+        broadcast(new MessageCreated($conversation));
+        broadcast(new NotifyParticipant($otherUser, $conversation));
         return back();
     }
 }

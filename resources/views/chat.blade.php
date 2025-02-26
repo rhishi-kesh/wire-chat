@@ -1,37 +1,49 @@
 <x-app-layout>
-    <x-slot name="header">
-        <div class="flex justify-start gap-5">
-            <b>Users:</b>
-            @foreach ($users as $user)
-                <a href="{{ route('chat', $user->id) }}" class="hover:text-blue-500">{{ $user->name }}</a>
-            @endforeach
-        </div>
-    </x-slot>
-    <div class="flex h-screen antialiased text-gray-800">
+    <div class="flex h-[calc(100vh_-_4.2rem)] antialiased text-gray-800">
         <div class="flex flex-row w-full h-auto overflow-x-hidden">
             <div class="flex flex-col flex-shrink-0 w-64 py-8 pt-0 pb-0 pl-2 pr-2 bg-white">
-                <div
-                    class="flex flex-col items-center w-full px-4 py-6 mt-2 bg-indigo-100 border border-gray-200 rounded-lg">
+                <div class="flex flex-col items-center w-full p-2 mt-2 bg-indigo-100 border border-gray-200 rounded-lg">
                     <div class="w-20 h-20 overflow-hidden border rounded-full">
-                        <img src="https://static.vecteezy.com/system/resources/previews/036/280/650/non_2x/default-avatar-profile-icon-social-media-user-image-gray-avatar-icon-blank-profile-silhouette-illustration-vector.jpg"
-                            alt="Avatar" class="w-full h-full" />
+                        <img
+                            src="{{ asset($otherUser->avatar ?? 'https://static.vecteezy.com/system/resources/previews/036/280/650/non_2x/default-avatar-profile-icon-social-media-user-image-gray-avatar-icon-blank-profile-silhouette-illustration-vector.jpg') }}">
+                        alt="Avatar" class="w-full h-full" />
                     </div>
-                    <div class="mt-2 text-sm font-semibold">{{ $user->name }}</div>
-                    <div class="text-xs text-gray-500">Lead UI/UX Designer</div>
+                    <div class="mt-2 text-sm font-semibold">{{ $otherUser->name }}</div>
                 </div>
                 <div class="flex flex-col mt-8">
                     <div class="flex flex-row items-center justify-between text-xs">
                         <span class="font-bold">Active Conversations</span>
-                        <span class="flex items-center justify-center w-4 h-4 bg-gray-300 rounded-full">4</span>
+                        <span
+                            class="flex items-center justify-center w-4 h-4 bg-gray-300 rounded-full">{{ count($conversations) }}</span>
                     </div>
-                    <div class="flex flex-col mt-4 -mx-2 space-y-1 overflow-y-auto">
-                        <button class="flex flex-row items-center p-2 hover:bg-gray-100 rounded-xl">
-                            <div class="flex items-center justify-center w-8 h-8 text-white bg-indigo-200 rounded-full">
-                                H
+                    @foreach ($conversations as $conversation)
+                        @if (!empty($conversation->participants) && isset($conversation->participants[0]->participantable->name))
+                            <div class="flex flex-col mt-4 -mx-2 space-y-1 overflow-y-auto">
+                                <a class="flex flex-row items-center p-2 hover:bg-gray-100 rounded-xl"
+                                    href="{{ route('dashboard.chat', $conversation->participants[0]->participantable->id) }}">
+                                    <img class="flex items-center justify-center object-contain text-white bg-indigo-200 rounded-full w-11 h-11"
+                                        src="{{ asset($conversation->participants[0]->participantable->avatar ?? 'https://static.vecteezy.com/system/resources/previews/036/280/650/non_2x/default-avatar-profile-icon-social-media-user-image-gray-avatar-icon-blank-profile-silhouette-illustration-vector.jpg') }}">
+                                    <div class="w-full ml-2">
+                                        <p class="font-semibold text-md">
+                                            {{ $conversation->participants[0]->participantable->name }}</p>
+                                        <p class="flex items-center justify-start w-full gap-2 text-sm font-normal">
+                                            <span class="block">
+                                                @if ($conversation->lastMessage->sendable_id == auth()->user()->id)
+                                                    <span class="mr-1">You:</span>
+                                                @endif
+                                                {{ $conversation->lastMessage->type == 'file'
+                                                    ? 'File'
+                                                    : Str::limit($conversation->lastMessage->body, 15, '...') }}
+                                            </span>
+                                            <span class="block text-green-500">
+                                                {{-- {{ $conversation->lastMessage->created_at->diffForHumans() }} --}} now
+                                            </span>
+                                        </p>
+                                    </div>
+                                </a>
                             </div>
-                            <div class="ml-2 text-sm font-semibold">Henry Boyd</div>
-                        </button>
-                    </div>
+                        @endif
+                    @endforeach
                 </div>
             </div>
             <div class="flex flex-col flex-auto h-full p-6">
@@ -64,8 +76,9 @@
                             </div>
                         </div>
                     </div>
+                    {{-- @dd($user->id) --}}
                     <div class="h-16 px-4 bg-white rounded-xl">
-                        <form action="{{ route('send', $user->id) }}" method="POST" enctype="multipart/form-data"
+                        <form action="{{ route('send', $otherUser->id) }}" method="POST" enctype="multipart/form-data"
                             class="flex flex-row items-center w-full h-full space-x-4">
                             @csrf
                             <div>
@@ -108,10 +121,23 @@
                                     </span>
                                 </button>
                             </div>
+
                         </form>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+    @push('js')
+        <script>
+            userId = @js(auth()->id());
+            encodedType = @js(Namu\WireChat\Helpers\MorphClassResolver::encode(auth()->user()->getMorphClass()));
+        </script>
+        <script type="module">
+            Echo.private(`participant.${encodedType}.${userId}`)
+                .listen('.Namu\\WireChat\\Events\\NotifyParticipant', (e) => {
+                    console.log(e);
+                });
+        </script>
+    @endpush
 </x-app-layout>
